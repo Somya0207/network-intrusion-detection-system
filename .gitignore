@@ -1,0 +1,15 @@
+# Large CICIDS2017 dataset files - excluded from repo, see README for download instructions
+MachineLearningCVE/
+cicids2017_combined.csv
+cicids2017_cleaned.csv
+cicids2017_downsampled.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
