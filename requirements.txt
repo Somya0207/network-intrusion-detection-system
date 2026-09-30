@@ -7,3 +7,4 @@ scapy
 joblib
 streamlit-autorefresh
 python-dotenv
+shap
