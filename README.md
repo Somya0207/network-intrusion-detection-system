@@ -202,7 +202,7 @@ python live_capture.py
 
 ## Live Demo
 
-Dashboard: *[deployed link to be added]*
+**Dashboard**: https://network-intrusion-detection-system-jzcfxcvbrfwkmynfgtfrmh.streamlit.app/
 
 ---
 
