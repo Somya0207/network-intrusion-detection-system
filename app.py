@@ -5,6 +5,7 @@ import random
 import plotly.graph_objects as go
 import joblib
 from streamlit_autorefresh import st_autorefresh
+import shap
 
 st.set_page_config(page_title="NIDS Live Dashboard", layout="wide")
 st.markdown("""
@@ -27,15 +28,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.title("🛡️ Network Intrusion Detection System")
 
+# ---- Load model, explainer, and sample data (cached) ----
 @st.cache_resource
 def load_model():
     return joblib.load("nids_model.pkl")
+
+model = load_model()  # must load BEFORE the explainer, which needs it
+
+@st.cache_resource
+def load_explainer():
+    return shap.TreeExplainer(model)
+
+explainer = load_explainer()
 
 @st.cache_data
 def load_sample_pool():
     return pd.read_csv("dashboard_sample_data.csv")
 
-model = load_model()
 sample_pool = load_sample_pool()
 feature_cols = [c for c in sample_pool.columns if c != "Label"]
 
@@ -63,8 +72,10 @@ def generate_real_alert():
         "confidence": round(float(proba), 2),
         "severity": SEVERITY_MAP.get(pred, "Medium"),
         "true_label": row["Label"],
+        "raw_features": row[feature_cols],  # kept for SHAP explanations, not for display
     }
-# Initialize persistent alert history ONCE per session
+
+# ---- Live mode / session state ----
 live_mode = st.sidebar.toggle("🔴 Live Mode (real model predictions)", value=False)
 if live_mode:
     st_autorefresh(interval=3000, key="live_refresh")
@@ -101,6 +112,10 @@ high_severity = len(alerts_df[alerts_df["severity"].isin(["High", "Critical"])])
 avg_confidence = alerts_df["confidence"].mean()
 unique_ips = alerts_df["src_ip"].nunique()
 
+def color_to_rgb(hex_color):
+    hex_color = hex_color.lstrip("#")
+    return ",".join(str(int(hex_color[i:i+2], 16)) for i in (0, 2, 4))
+
 def sparkline_kpi(label, value, delta, delta_positive_is_good, trend_data, color):
     delta_color = "#22c55e" if (delta_positive_is_good == (delta.startswith("↑"))) else "#ef4444"
 
@@ -122,10 +137,6 @@ def sparkline_kpi(label, value, delta, delta_positive_is_good, trend_data, color
         st.markdown(f"<span style='font-size:12px; color:{delta_color}'>{delta}</span>", unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=label)
 
-def color_to_rgb(hex_color):
-    hex_color = hex_color.lstrip("#")
-    return ",".join(str(int(hex_color[i:i+2], 16)) for i in (0, 2, 4))
-
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 with kpi1:
     sparkline_kpi("Total Alerts", total_alerts, "↑ 8.4%", True, [3,5,4,7,6,8,total_alerts], "#3b82f6")
@@ -137,6 +148,7 @@ with kpi4:
     sparkline_kpi("Unique Source IPs", unique_ips, "↓ 3.2%", False, [18,17,16,15,14,15,unique_ips], "#a855f7")
 st.divider()
 
+# ---- Donut charts ----
 donut_col1, donut_col2 = st.columns(2)
 
 with donut_col1:
@@ -191,7 +203,7 @@ with donut_col2:
 st.markdown("<p style='font-size:18px; font-weight:600; margin-bottom:4px'>Recent Alerts</p>", unsafe_allow_html=True)
 
 if st.button("Simulate New Alert"):
-    st.session_state.alerts.insert(0, generate_mock_alert())
+    st.session_state.alerts.insert(0, generate_real_alert())  # fixed: was calling a function that no longer exists
 
 # ---- Filters ----
 col1, col2 = st.columns(2)
@@ -213,8 +225,49 @@ filtered_df = alerts_df[
     (alerts_df["attack_type"].isin(attack_filter))
 ]
 
-st.dataframe(filtered_df, use_container_width=True)
+# Hide internal-only columns (true_label = answer key, raw_features = SHAP data) from the visible table
+display_df = filtered_df.drop(columns=["true_label", "raw_features"], errors="ignore")
+st.dataframe(display_df, use_container_width=True)
 st.caption(f"Showing {len(filtered_df)} of {len(alerts_df)} alerts")
+
+# ---- SHAP: Explain an Alert ----
+st.markdown("### 🔍 Explain an Alert")
+alert_options = [
+    f"#{i} — {a['attack_type']} from {a['src_ip']} ({a['timestamp'].strftime('%H:%M:%S')})"
+    for i, a in enumerate(st.session_state.alerts[:20])  # limit dropdown to most recent 20
+]
+selected = st.selectbox("Select an alert to explain", alert_options, index=0)
+selected_idx = int(selected.split("—")[0].replace("#", "").strip())
+
+if st.button("Generate Explanation"):
+    with st.spinner("Computing SHAP explanation..."):
+        alert = st.session_state.alerts[selected_idx]
+        row = pd.DataFrame([alert["raw_features"]])
+        pred_class = alert["attack_type"]
+        class_idx = list(model.classes_).index(pred_class)
+
+        shap_vals = explainer.shap_values(row)
+        if isinstance(shap_vals, list):
+            vals = shap_vals[class_idx][0]
+        else:
+            vals = shap_vals[0, :, class_idx]
+
+        impact = pd.Series(vals, index=feature_cols).sort_values(key=abs, ascending=False).head(8)
+
+        st.markdown(f"**Why was this flagged as `{pred_class}`?**")
+        fig_shap = go.Figure(go.Bar(
+            x=impact.values,
+            y=impact.index,
+            orientation='h',
+            marker_color=["#ef4444" if v > 0 else "#22c55e" for v in impact.values]
+        ))
+        fig_shap.update_layout(
+            template="plotly_dark", height=350,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis_title="Impact on prediction (SHAP value)",
+        )
+        st.plotly_chart(fig_shap, use_container_width=True)
+        st.caption("Red = pushed toward this prediction, Green = pushed away from it")
 
 st.divider()
 st.subheader("Attack Overview")
