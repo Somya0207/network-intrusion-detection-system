@@ -33,8 +33,7 @@ def load_model():
 
 @st.cache_data
 def load_sample_pool():
-    df = pd.read_csv("cicids2017_downsampled.csv")
-    return df.sample(n=2000, random_state=1).reset_index(drop=True)
+    return pd.read_csv("dashboard_sample_data.csv")
 
 model = load_model()
 sample_pool = load_sample_pool()

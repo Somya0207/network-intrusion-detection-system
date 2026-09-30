@@ -4,11 +4,14 @@ cicids2017_combined.csv
 cicids2017_cleaned.csv
 cicids2017_downsampled.csv
 
+nids_model_backup_*.pkl
+
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+.env
 
 # OS
 .DS_Store
