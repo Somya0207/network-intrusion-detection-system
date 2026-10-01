@@ -11,7 +11,7 @@ This project goes beyond a typical "train a model on a static dataset" exercise 
 - A **custom flow-based feature extraction pipeline** built from scratch using Scapy, applied to self-captured network traffic
 - A **multi-class classifier comparison** (Random Forest vs. XGBoost) trained on CICIDS2017, a large-scale, peer-reviewed intrusion detection research dataset (2.5M+ flows after cleaning)
 - **SHAP-based explainability** — every prediction can be traced back to the specific features that drove it, not just a black-box label
-- A **live-updating Streamlit dashboard** streaming real model predictions
+- A **live-updating, multi-page Streamlit dashboard** (Dashboard, Alerts, Traffic Monitor, System Analytics, Reports, Settings) streaming real model predictions with live, on-demand SHAP explanations
 - A **standalone FastAPI inference service**, decoupled from the dashboard
 - A **real-time packet capture pipeline** (Scapy + Npcap) that reconstructs flows and generates live predictions from genuinely live traffic
 - **Slack alerting** for high-severity detections
@@ -66,10 +66,10 @@ Trained on a class-balanced subset of CICIDS2017 (625,740 flows across 15 classe
 
 ## Explainability (SHAP)
 
-Rather than treat the model as a black box, every prediction can be explained using SHAP (SHapley Additive exPlanations):
+Rather than treat the model as a black box, every prediction can be explained using SHAP (SHapley Additive exPlanations) — both offline and **live, inside the running dashboard**:
 
 - **Global feature importance** ([`shap_summary.png`](shap_summary.png)) shows which features matter most across all predictions
-- **Per-prediction explanations** show exactly why a specific flow was flagged — e.g., a PortScan prediction was driven primarily by `Bwd Packet Length Min`, `Bwd Packets/s`, and `Flow Packets/s`, in that order
+- **Live per-alert explanations**: the dashboard includes an "Explain an Alert" panel where any alert in the current session can be selected, and SHAP computes a real, on-demand explanation showing exactly which features drove that specific prediction (and in which direction) — not a static example, but live computation on the actual flow data behind that alert
 
 This directly answers the "how do you trust an ML-based security decision?" question that black-box classifiers can't.
 
