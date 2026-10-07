@@ -51,3 +51,21 @@ def predict_sample():
         "confidence": round(float(proba), 4),
         "true_label": true_label
     }
+
+# ---- Web attack detection (specialized text-based model) ----
+web_attack_model = joblib.load("web_attack_model.pkl")
+web_attack_vectorizer = joblib.load("web_attack_vectorizer.pkl")
+
+class HttpPayload(BaseModel):
+    payload: str
+
+@app.post("/predict_web_attack")
+def predict_web_attack(data: HttpPayload):
+    X_vec = web_attack_vectorizer.transform([data.payload])
+    pred = web_attack_model.predict(X_vec)[0]
+    proba = web_attack_model.predict_proba(X_vec).max()
+    return {
+        "payload": data.payload,
+        "prediction": pred,
+        "confidence": round(float(proba), 4)
+    }
