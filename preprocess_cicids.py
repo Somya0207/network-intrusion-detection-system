@@ -9,12 +9,6 @@ if os.path.exists(output_file):
 
 csv_files = glob.glob("MachineLearningCVE/*.csv")
 
-label_fixes = {
-    'Web Attack \x96 Brute Force': 'Web Attack - Brute Force',
-    'Web Attack \x96 XSS': 'Web Attack - XSS',
-    'Web Attack \x96 Sql Injection': 'Web Attack - Sql Injection',
-}
-
 total_rows_before = 0
 total_rows_after = 0
 total_inf = 0
